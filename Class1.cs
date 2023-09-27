@@ -49,12 +49,12 @@ namespace DestructoDisc
             if(disc != null)
             {
                 isShooting = true;
-                disc.rb.AddForce(velocity * projectileSpeedMultiplier, ForceMode.Impulse);
+                disc.physicBody.AddForce(velocity * projectileSpeedMultiplier, ForceMode.Impulse);
                 disc.Throw(1, Item.FlyDetection.Forced);
                 disc.mainHandleRight.SetTouch(true);
                 GameObject sound = new GameObject("Sound");
                 sound.transform.position = disc.transform.position;
-                EffectInstance shoot = Catalog.GetData<EffectData>("DestructoDiscLaunch").Spawn(sound.transform, true);
+                EffectInstance shoot = Catalog.GetData<EffectData>("DestructoDiscLaunch").Spawn(sound.transform, null, true);
                 shoot.SetIntensity(1f);
                 shoot.Play();
                 GameObject.Destroy(sound, 5);
@@ -91,7 +91,20 @@ namespace DestructoDisc
                 collision.targetCollider = other;
                 collision.targetColliderGroup = other.GetComponentInParent<ColliderGroup>();
                 collision.sourceColliderGroup = item.colliderGroups[0];
-                collision.sourceCollider = item.colliderGroups[0].colliders[0];
+                collision.sourceCollider = item.colliderGroups[0].colliders[0]; 
+                if (other.GetComponentInParent<Breakable>() is Breakable breakable)
+                {
+                    if (item.physicBody.velocity.sqrMagnitude < breakable.neededImpactForceToDamage)
+                        return;
+                    float sqrMagnitude = item.physicBody.velocity.sqrMagnitude;
+                    --breakable.hitsUntilBreak;
+                    if (breakable.canInstantaneouslyBreak && sqrMagnitude >= breakable.instantaneousBreakVelocityThreshold)
+                        breakable.hitsUntilBreak = 0;
+                    breakable.onTakeDamage?.Invoke(sqrMagnitude);
+                    if (breakable.IsBroken || breakable.hitsUntilBreak > 0)
+                        return;
+                    breakable.Break();
+                }
                 if (other.attachedRigidbody != null && other.attachedRigidbody.GetComponent<RagdollPart>() is RagdollPart part && part.ragdoll.creature != spellCaster.mana.creature)
                 {
                     Vector3 direction = part.GetSliceDirection();
@@ -110,19 +123,19 @@ namespace DestructoDisc
                     {
                         part.ragdoll.creature.Damage(collision);
                         if(!part.ragdoll.creature.isPlayer)
-                        part.ragdoll.creature.TryPush(Creature.PushType.Hit, item.rb.velocity, 2, part.type);
+                        part.ragdoll.creature.TryPush(Creature.PushType.Hit, item.physicBody.velocity, 2, part.type);
                         creatures.Add(part.ragdoll.creature);
                     }
                 }
                 if (other.attachedRigidbody == null)
                 {
-                    EffectInstance instance = Catalog.GetData<EffectData>("HitDestructoDisc").Spawn(item.transform.position + (item.transform.forward * 0.2f), Quaternion.LookRotation(item.transform.forward, item.transform.right), other.transform, collision, true, null, false, null);
+                    EffectInstance instance = Catalog.GetData<EffectData>("HitDestructoDisc").Spawn(item.transform.position + (item.transform.forward * 0.2f), Quaternion.LookRotation(item.transform.forward, item.transform.right), other.transform, collision, true, null, false);
                     instance.SetIntensity(1f);
                     instance.Play();
                 }
                 else if (other.attachedRigidbody != null && other.attachedRigidbody.GetComponent<RagdollPart>()?.ragdoll?.creature != spellCaster.mana.creature)
                 {
-                    EffectInstance instance = Catalog.GetData<EffectData>("HitDestructoDiscNoDecal").Spawn(item.transform.position + (item.transform.forward * 0.2f), Quaternion.LookRotation(item.transform.forward, item.transform.right), other.transform, collision, true, null, false, null);
+                    EffectInstance instance = Catalog.GetData<EffectData>("HitDestructoDiscNoDecal").Spawn(item.transform.position + (item.transform.forward * 0.2f), Quaternion.LookRotation(item.transform.forward, item.transform.right), other.transform, collision, true, null, false);
                     instance.SetIntensity(1f);
                     instance.Play();
                 }
